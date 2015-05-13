@@ -16,6 +16,19 @@ const unsigned int  dose_intensities[4] = {15, 95, 175, 255};  // fixed constant
 
 
 
+unsigned char ReadDosePersonality(void);
+//
+//  Return:
+//      0x00 = No dose personailty installed
+//      0x02 = Ultra Low Dose Personality Installed
+//      0x04 = Low Dose Personailty Installed
+//      0x08 = Medium Dose Personality Installed
+//      0x10 = High Dose Personailty Installed
+//      0xFF = Problem reading personailty module
+//
+
+
+
 void ReadTrigPulseWidth(void);
 unsigned char FilterTrigger(unsigned char param);
 void ReadAndSetEnergy(void);
@@ -63,7 +76,7 @@ void PulseSyncStateMachine(void) {
     Initialize();
     ETMCanSlaveInitialize(FCY, ETM_CAN_ADDR_PULSE_SYNC_BOARD, _PIN_RG14, 4); 
     ETMCanSlaveLoadConfiguration(36487, 250, FIRMWARE_AGILE_REV, FIRMWARE_BRANCH, FIRMWARE_MINOR_REV);
-    //psb_data.personality = ReadDosePersonality();  // DPARKER THIS IS NOT WORKING
+    psb_data.personality = ReadDosePersonality();  // DPARKER THIS IS NOT WORKING
     // DPARKER ADDED FOR TESTING TO MAKE IT WORK
     psb_data.personality = 255;
     _CONTROL_NOT_READY = 1;
@@ -197,6 +210,12 @@ void __attribute__((interrupt(__save__(CORCON,SR)), no_auto_psv)) _INT3Interrupt
   // TMR1 is used to time the time between INT3 interrupts
   psb_data.last_period = TMR1;
   TMR1 = 0;
+
+  // INT3 Trigger is delayed in hardware 40us from the input trigger, If the trigger is still high then it is TOO Long
+  if (PIN_TRIG_INPUT == ILL_TRIG_ON) {
+    _FAULT_TRIGGER_STAYED_ON = 1;
+  }
+
   if (_T1IF) {
     // The timer exceed it's period of 400mS - (Will happen if the PRF is less than 2.5Hz)
     psb_data.last_period = 62501;  // This will indicate that the PRF is Less than 2.5Hz
@@ -497,10 +516,11 @@ void ProgramShiftRegisters(void)
     {
     	PIN_PW_HOLD_LOWRESET_OUT = OLL_PW_HOLD_LOWRESET;   // clear reset only when trig pulse is low
         Nop();
-    	_FAULT_TRIGGER_STAYED_ON = 0;
+    	//_FAULT_TRIGGER_STAYED_ON = 0;
     }
-    else
-    	_FAULT_TRIGGER_STAYED_ON = 1;
+    else {
+      //_FAULT_TRIGGER_STAYED_ON = 1;
+    }
 }
 
 // calculate the interpolation value
@@ -563,7 +583,7 @@ void DoA36487(void) {
       ReadTrigPulseWidth();
       ReadAndSetEnergy();
     } else {  // if pulse trig stays on, set to minimum dose and flag fault
-      _FAULT_TRIGGER_STAYED_ON = 1;
+      //_FAULT_TRIGGER_STAYED_ON = 1;
       psb_data.trigger_filtered = 0;
       
     }
@@ -898,3 +918,83 @@ void InitTimer1(void) {
   PR1 = 62500;  // 400mS
 }
 
+
+
+// These defines are what is actually read from the shift register
+#define HIGH_DOSE       0x77
+#define MEDIUM_DOSE     0xCC
+#define LOW_DOSE        0xAA
+#define ULTRA_LOW_DOSE  0x99
+
+//Pin requirements
+#define PIN_ID_SHIFT_OUT	_LATC2
+#define TRIS_PIN_ID_SHIFT_OUT   _TRISC2
+#define OLL_ID_SHIFT            1
+
+#define PIN_ID_CLK_OUT 		_LATC3
+#define TRIS_PIN_ID_CLK_OUT	_TRISC3
+#define OLL_ID_CLK   		1
+
+#define PIN_ID_DATA_IN          _RC4
+#define TRIS_PIN_ID_DATA_IN     _TRISC4
+#define ILL_ID_DATA  		1
+
+
+unsigned char ReadDosePersonality() {
+      unsigned int data;
+      unsigned char i, data1, data2;
+
+      PIN_ID_CLK_OUT   = !OLL_ID_CLK;
+      PIN_ID_SHIFT_OUT = !OLL_ID_SHIFT; // load the reg
+      __delay32(1); // 100ns for 10M TCY
+      PIN_ID_SHIFT_OUT = OLL_ID_SHIFT;  // enable shift
+      __delay32(1); // 100ns for 10M TCY
+
+      data = PIN_ID_DATA_IN;
+
+      for (i = 0; i < 8; i++)
+      {
+      	PIN_ID_CLK_OUT = OLL_ID_CLK;
+        data <<= 1;
+        data |= PIN_ID_DATA_IN;
+      	PIN_ID_CLK_OUT = !OLL_ID_CLK;
+        __delay32(1); // 100ns for 10M TCY
+      }
+
+      //if bits do not match then bad module
+      data1 = data & 0x01;
+      data2 = data & 0x10;
+      if (data1 != (data2 >> 4))
+          return 0xFF;
+      data1 = data & 0x02;
+      data2 = data & 0x20;
+      if (data1 != (data2 >> 4))
+          return 0xFF;
+      data1 = data & 0x04;
+      data2 = data & 0x40;
+      if (data1 != (data2 >> 4))
+          return 0xFF;
+      data1 = data & 0x08;
+      data2 = data & 0x80;
+      if (data1 != (data2 >> 4))
+          return 0xFF;
+
+      //bit 3 is 1 except when 0,1,2 are 1
+      data1 = data & 0x08;
+      data2 = data & 0x07;
+      if (data1 != data2)
+            return 0xFF;
+
+      if (data == ULTRA_LOW_DOSE)
+          return 0x02;
+      else if (data == LOW_DOSE)
+          return 0x04;
+      else if (data == MEDIUM_DOSE)
+          return 0x08;
+      else if (data == HIGH_DOSE)
+          return 0x10;
+      else if (data == 0xFF)
+          return data;
+      else
+        return 0;
+}
