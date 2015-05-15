@@ -83,6 +83,7 @@ void PulseSyncStateMachine(void) {
     _CONTROL_NOT_CONFIGURED = 1;
     PIN_CPU_HV_ENABLE_OUT = !OLL_CPU_HV_ENABLE;
     PIN_CPU_XRAY_ENABLE_OUT = !OLL_CPU_XRAY_ENABLE;
+    PIN_CPU_WARNING_LAMP_OUT = !OLL_CPU_WARNING_LAMP;
     psb_data.state_machine = STATE_WAIT_FOR_CONFIG;
     break;
 
@@ -91,6 +92,7 @@ void PulseSyncStateMachine(void) {
     _CONTROL_NOT_CONFIGURED = 1;
     PIN_CPU_HV_ENABLE_OUT = !OLL_CPU_HV_ENABLE;
     PIN_CPU_XRAY_ENABLE_OUT = !OLL_CPU_XRAY_ENABLE;
+    PIN_CPU_WARNING_LAMP_OUT = !OLL_CPU_WARNING_LAMP;
     while (psb_data.state_machine == STATE_WAIT_FOR_CONFIG) {
       DoA36487();
       ETMCanSlaveDoCan();
@@ -107,6 +109,7 @@ void PulseSyncStateMachine(void) {
     _CONTROL_NOT_READY = 0;
     PIN_CPU_HV_ENABLE_OUT = !OLL_CPU_HV_ENABLE;
     PIN_CPU_XRAY_ENABLE_OUT = !OLL_CPU_XRAY_ENABLE;
+    PIN_CPU_WARNING_LAMP_OUT = !OLL_CPU_WARNING_LAMP;
     while (psb_data.state_machine == STATE_HV_OFF) {
       DoA36487();
       ETMCanSlaveDoCan();
@@ -127,6 +130,7 @@ void PulseSyncStateMachine(void) {
     _CONTROL_NOT_READY = 0;
     PIN_CPU_HV_ENABLE_OUT = OLL_CPU_HV_ENABLE;
     PIN_CPU_XRAY_ENABLE_OUT = !OLL_CPU_XRAY_ENABLE;
+    PIN_CPU_WARNING_LAMP_OUT = !OLL_CPU_WARNING_LAMP;
     while (psb_data.state_machine == STATE_HV_ENABLE) {
       DoA36487();
       ETMCanSlaveDoCan();
@@ -151,6 +155,7 @@ void PulseSyncStateMachine(void) {
     _CONTROL_NOT_READY = 0;
     PIN_CPU_HV_ENABLE_OUT = OLL_CPU_HV_ENABLE;
     PIN_CPU_XRAY_ENABLE_OUT = OLL_CPU_XRAY_ENABLE;
+    PIN_CPU_WARNING_LAMP_OUT = OLL_CPU_WARNING_LAMP;
     while (psb_data.state_machine == STATE_X_RAY_ENABLE) {
       DoA36487();
       ETMCanSlaveDoCan();
@@ -205,26 +210,27 @@ void __attribute__((interrupt(__save__(CORCON,SR)), no_auto_psv)) _INT3Interrupt
   // If (PIN_CPU_XRAY_ENABLE_OUT == OLL_CPU_XRAY_ENABLE)  && (PIN_CUSTOMER_XRAY_ON_IN == ILL_CUSTOMER_BEAM_ENABLE) then we "Probably" generated a pulse
 
   _INT3IF = 0;		// Clear Interrupt flag
-  
-  // Calculate the Trigger PRF
-  // TMR1 is used to time the time between INT3 interrupts
-  psb_data.last_period = TMR1;
-  TMR1 = 0;
 
+
+  if (_SYNC_CONTROL_PULSE_SYNC_DISABLE_HV || _SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY) {
+    // We are not pulsing so ignore this trigger pulse (from the point of view of calculating PRF)
+    psb_data.last_period = 62501;  // This will indicate that the PRF is Less than 2.5Hz
+  } else {
+    // Calculate the Trigger PRF
+    // TMR1 is used to time the time between INT3 interrupts
+    psb_data.last_period = TMR1;
+    if (_T1IF) {
+      // The timer exceed it's period of 400mS - (Will happen if the PRF is less than 2.5Hz)
+      psb_data.last_period = 62501;  // This will indicate that the PRF is Less than 2.5Hz
+    }
+    TMR1 = 0;
+    _T1IF = 0;
+ }
+  
   // INT3 Trigger is delayed in hardware 40us from the input trigger, If the trigger is still high then it is TOO Long
   if (PIN_TRIG_INPUT == ILL_TRIG_ON) {
     _FAULT_TRIGGER_STAYED_ON = 1;
   }
-
-  if (_T1IF) {
-    // The timer exceed it's period of 400mS - (Will happen if the PRF is less than 2.5Hz)
-    psb_data.last_period = 62501;  // This will indicate that the PRF is Less than 2.5Hz
-  }
-  if (_SYNC_CONTROL_PULSE_SYNC_DISABLE_HV || _SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY) {
-    // We are not pulsing so set the PRF to the minimum
-    psb_data.last_period = 62501;  // This will indicate that the PRF is Less than 2.5Hz
-  }
-  _T1IF = 0;
 
   psb_data.trigger_complete = 1;
 }
