@@ -212,20 +212,15 @@ void __attribute__((interrupt(__save__(CORCON,SR)), no_auto_psv)) _INT3Interrupt
   _INT3IF = 0;		// Clear Interrupt flag
 
 
-  if (_SYNC_CONTROL_PULSE_SYNC_DISABLE_HV || _SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY) {
-    // We are not pulsing so ignore this trigger pulse (from the point of view of calculating PRF)
+  // Calculate the Trigger PRF
+  // TMR1 is used to time the time between INT3 interrupts
+  psb_data.last_period = TMR1;
+  if (_T1IF) {
+    // The timer exceed it's period of 400mS - (Will happen if the PRF is less than 2.5Hz)
     psb_data.last_period = 62501;  // This will indicate that the PRF is Less than 2.5Hz
-  } else {
-    // Calculate the Trigger PRF
-    // TMR1 is used to time the time between INT3 interrupts
-    psb_data.last_period = TMR1;
-    if (_T1IF) {
-      // The timer exceed it's period of 400mS - (Will happen if the PRF is less than 2.5Hz)
-      psb_data.last_period = 62501;  // This will indicate that the PRF is Less than 2.5Hz
-    }
-    TMR1 = 0;
-    _T1IF = 0;
- }
+  }
+  TMR1 = 0;
+  _T1IF = 0;
   
   // INT3 Trigger is delayed in hardware 40us from the input trigger, If the trigger is still high then it is TOO Long
   if (PIN_TRIG_INPUT == ILL_TRIG_ON) {
@@ -702,24 +697,20 @@ void DoA36487(void) {
     // Run these once every 10ms
     _T2IF = 0;
 
-    // -------------- UPDATE LED OUTPUTS ---------------- //
-    if (LED_WARMUP_STATUS) {
-      //PIN_LED_WARMUP = OLL_LED_ON;  // THIS IS NOW THE CAN ACTIVITY LED
+    // -------------- UPDATE CUSTOMER INTERFACE LED OUTPUTS ---------------- //
+    if (_SYNC_CONTROL_PULSE_SYNC_WARMUP_LED) {
       PIN_CPU_WARMUP_OUT = OLL_CPU_WARMUP;
     } else {
-      //PIN_LED_WARMUP = !OLL_LED_ON; // THIS IS NOW THE CAN ACTIVITY LED
       PIN_CPU_WARMUP_OUT = !OLL_CPU_WARMUP;
     }
     
-    if (LED_STANDBY_STATUS) {
-      PIN_LED_STANDBY = OLL_LED_ON;
-      //PIN_CPU_STANDBY_OUT = OLL_CPU_STANDBY;  // THIS IS NOW THE "OPERATE" LED
+    if (_SYNC_CONTROL_PULSE_SYNC_STANDBY_LED) {
+      PIN_CPU_STANDBY_OUT = OLL_CPU_STANDBY;
     } else {
-      PIN_LED_STANDBY = !OLL_LED_ON;
-      //PIN_CPU_STANDBY_OUT = !OLL_CPU_STANDBY; // THIS IS NOW THE "OPERATE" LED
+      PIN_CPU_STANDBY_OUT = !OLL_CPU_STANDBY;
     }
     
-    if (LED_READY_STATUS) {
+    if (_SYNC_CONTROL_PULSE_SYNC_READY_LED) {
       PIN_LED_READY = OLL_LED_ON;
       PIN_CPU_READY_OUT = OLL_CPU_READY;
     } else {
@@ -727,7 +718,7 @@ void DoA36487(void) {
       PIN_CPU_READY_OUT = !OLL_CPU_READY;
     }
   
-    if (LED_SUM_FAULT_STATUS) {
+    if (_SYNC_CONTROL_PULSE_SYNC_FAULT_LED) {
       PIN_LED_SUMFLT = OLL_LED_ON;
       PIN_CPU_SUMFLT_OUT = OLL_CPU_SUMFLT;
     } else {
@@ -735,8 +726,9 @@ void DoA36487(void) {
       PIN_CPU_SUMFLT_OUT = !OLL_CPU_SUMFLT;
     }
     
-    // -------------- END UPDATE LED OUTPUTS ---------------- //
+    // -------------- END UPDATE CUSTOMER INTERFACE LED OUTPUTS ---------------- //
     
+
 
 
     // This is not needed as the CAN module will generate 

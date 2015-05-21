@@ -75,9 +75,11 @@ void ETMCanSlaveExecuteCMDBoardSpecific(ETMCanMessage* message_ptr) {
       psb_data.counter_config_received |= 0b1000;
       break;
 
+      /*
     case ETM_CAN_REGISTER_PULSE_SYNC_SET_1_CUSTOMER_LED_OUTPUT:
       psb_data.led_state = message_ptr->word0;
       break;      
+      */
 
     default:
       local_can_errors.invalid_index++;

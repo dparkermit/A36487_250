@@ -80,7 +80,7 @@ typedef struct{
     unsigned int led_flash_counter;
     unsigned int counter_config_received;
     unsigned int state_machine;
-    unsigned int led_state;        
+    //unsigned int led_state;        
     unsigned int last_period;
     unsigned int period_filtered;
     unsigned int pulses_on;
@@ -200,10 +200,10 @@ extern PSB_DATA psb_data;
 #define _FAULT_PFN_STATUS                          _FAULT_6
 #define _FAULT_RF_STATUS                           _FAULT_7
 
-#define LED_WARMUP_STATUS                         (psb_data.led_state & 0x0001)
-#define LED_STANDBY_STATUS                        (psb_data.led_state & 0x0002)
-#define LED_READY_STATUS                          (psb_data.led_state & 0x0004)
-#define LED_SUM_FAULT_STATUS                      (psb_data.led_state & 0x0008)
+//#define LED_WARMUP_STATUS                         (psb_data.led_state & 0x0001)
+//#define LED_STANDBY_STATUS                        (psb_data.led_state & 0x0002)
+//#define LED_READY_STATUS                          (psb_data.led_state & 0x0004)
+//#define LED_SUM_FAULT_STATUS                      (psb_data.led_state & 0x0008)
 
 #define LED_STARTUP_FLASH_TIME                    300 // 3 Seconds
 
