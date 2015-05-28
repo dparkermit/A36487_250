@@ -110,6 +110,7 @@ typedef struct{
     //unsigned char local_state;      //same definitions as system state
 
     unsigned int rep_rate_deci_herz;
+    unsigned int time_no_trigger;
 } PSB_DATA;
 
 //typedef struct{

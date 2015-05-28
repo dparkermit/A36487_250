@@ -578,6 +578,7 @@ void DoA36487(void) {
   if (psb_data.trigger_complete) {
     // Do post trigger process
     psb_data.trigger_complete = 0;
+    psb_data.time_no_trigger = 0;
     
     // This is used to detect if the trigger is high (which would cause constant pulses to the system)
     if (PIN_TRIG_INPUT != ILL_TRIG_ON) {
@@ -727,6 +728,18 @@ void DoA36487(void) {
     }
     
     // -------------- END UPDATE CUSTOMER INTERFACE LED OUTPUTS ---------------- //
+    
+
+    
+    // Look for no triggers for more than a second
+    // If so, send a counter reset pulse
+    psb_data.time_no_trigger++;
+    if (psb_data.time_no_trigger >= 100) {
+      psb_data.time_no_trigger = 0;
+      PIN_PW_CLR_CNT_OUT = OLL_PW_CLR_CNT;
+      __delay32(10);
+      PIN_PW_CLR_CNT_OUT = !OLL_PW_CLR_CNT;
+    }
     
 
 
